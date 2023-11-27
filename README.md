@@ -18,7 +18,7 @@ We will parallelize the LSH using MPI and OpenMP target. Both the MinHashing and
 ![minhash architecture](minhash.png)
 
 * Banded LSH function：We will get candidate pairs from b bands. For each band, we need to check for each document if its signature pieces are the same as others. If so, they are the candidate pairs. We will split b bands to 2 MPI nodes, while each node has an OpenMP master thread with league of teams. Each team will deal with one band, with OpenMP pragma directive to parallelize the nested loops for the comparisons between every pair of signature pieces. Below are the architecture design:
-![Banded LSH architecture](<banded lsh.png>)
+![Banded LSH architecture](banded_lsh.png)
 
 
 ## Expected Results
