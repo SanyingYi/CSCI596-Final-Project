@@ -8,8 +8,8 @@
 #define MIN(a, b) (a < b ? a : b)
 #define MAX(a, b) (a > b ? a : b)
 
-// const char *pathdata = "../data/doc_shingle_matrix.txt";
-const char *pathdata = "../data/test_matrix.txt";
+const char *pathdata = "../data/doc_shingle_matrix.txt";
+// const char *pathdata = "../data/test_matrix.txt";
 
 uint8_t shingle[DOCCOUNT][SHINGLECOUNT]; // read the doc-shingle 0-1 matrix to this matrix
 uint16_t sig[DOCCOUNT][HASHCOUNT];       // the signature matrix
@@ -29,21 +29,24 @@ void read_shingle_matrix()
         perror("Error opening file");
         exit(EXIT_FAILURE);
     }
-    char line[DOCCOUNT * SHINGLECOUNT]; // each line has SHINGLECOUNT * 2 characters because of spaces
-    int row = 0, col = 0;               // index
-    // Read file line by line
-    while (fgets(line, sizeof(line), file) != NULL)
+
+    int row = 0, col = 0; // index
+    char ch;
+    while ((ch = fgetc(file)) != EOF) // read character by character to avoid memory overflow
     {
-        col = 0;
-        char *token = strtok(line, " \n");
-        while (token != NULL)
+        if (ch != '\n')
         {
-            // printf("%d", atoi(token));
-            shingle[row][col] = (uint8_t)atoi(token);
-            token = strtok(NULL, " \n");
-            col++;
+            if (ch != ' ')
+            {
+                shingle[row][col] = (uint8_t)(ch - '0');
+                col++;
+            }
         }
-        row++;
+        else
+        {
+            col = 0;
+            row++;
+        }
 
         // Check if the matrix is fully populated
         if (row >= DOCCOUNT)
@@ -114,9 +117,9 @@ void read_shingle_matrix()
 int main()
 {
     read_shingle_matrix();
-    for (int i = 0; i < DOCCOUNT; i++)
+    for (int i = 0; i < 4; i++)
     {
-        for (int j = 0; j < SHINGLECOUNT; j++)
+        for (int j = 0; j < 4; j++)
             printf("%u", shingle[i][j]);
         printf("\n");
     }

@@ -3,10 +3,10 @@
 
 #include <stdint.h>
 
-// #define DOCCOUNT 24000
-// #define SHINGLECOUNT 10232
-#define DOCCOUNT 4
-#define SHINGLECOUNT 4
+#define DOCCOUNT 24000
+#define SHINGLECOUNT 10232
+// #define DOCCOUNT 4
+// #define SHINGLECOUNT 4
 
 #define BANDCOUNT 50
 // #define BANDCOUNT 2
