@@ -3,13 +3,13 @@
 
 #include <stdint.h>
 
-#define DOCCOUNT 24000
-#define SHINGLECOUNT 10232
-// #define DOCCOUNT 4
-// #define SHINGLECOUNT 4
+// #define DOCCOUNT 24000
+// #define SHINGLECOUNT 10232
+#define DOCCOUNT 4
+#define SHINGLECOUNT 4
 
-#define BANDCOUNT 50
-// #define BANDCOUNT 2
+// #define BANDCOUNT 50
+#define BANDCOUNT 2
 #define LINEOFROWS 2
 #define HASHCOUNT (BANDCOUNT * LINEOFROWS)
 
@@ -17,10 +17,10 @@
 
 void read_shingle_matrix();
 
-void load_computeSig();
+void compute_sig();
 
 void genCandbySig();
 
-void computeLSH();
+void compute_LSH();
 
 #endif
