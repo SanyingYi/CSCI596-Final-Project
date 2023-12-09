@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <time.h>
 
+#include "mpi.h"
+
 #define MIN(a, b) (a < b ? a : b)
 #define MAX(a, b) (a > b ? a : b)
 
@@ -102,6 +104,23 @@ void compute_sig()
     }
 }
 
+void compute_sig_partial(int start_doc, int end_doc) {
+    printf("Compute Sig Partial ..., writing to rows: [%d, %d)\n", start_doc, end_doc);
+
+    for (int i = start_doc; i < end_doc; i++) {
+        for (int k = 0; k < HASHCOUNT; k++) {
+            for (int j = 0; j < SHINGLECOUNT; j++) {
+                if (shingle[i][j] == 1) {
+                    unsigned int res = (((uint64_t)(sig_hash_a[k] * j + sig_hash_b[k])) % 233333333333ULL) % SHINGLECOUNT;
+                    sig[i][k] = MIN(sig[i][k], res);
+                }
+            }
+        }
+    }
+}
+
+
+
 // ==================== Banded LSH Function to Generate Candidate Pairs====================
 void compute_LSH()
 {
@@ -158,23 +177,23 @@ void compute_LSH()
 
 // ==================== Output Function ====================
 
-void genCandbySig() {
-	printf("Generating Candidate by Sig ...\n");
-	int validpair = 0 ;
+// void genCandbySig() {
+// 	printf("Generating Candidate by Sig ...\n");
+// 	int validpair = 0 ;
 
-	FILE * fout = fopen("./data/sig.res", "w");
-	for(int a=0 ; a<DOCCOUNT ; a++)
-		for(int b=a+1 ; b<DOCCOUNT ; b++) {
-			if(isValidPairs(a, b)) {
-				fprintf(fout, "%d\t%d\n", a, b);
-				validpair++;
-			}
-		}
-	fclose(fout);
-	printf("Complete. Valid pair by Sig:\t%d\n", validpair);
-}
+// 	FILE * fout = fopen("./data/sig.res", "w");
+// 	for(int a=0 ; a<DOCCOUNT ; a++)
+// 		for(int b=a+1 ; b<DOCCOUNT ; b++) {
+// 			if(isValidPairs(a, b)) {
+// 				fprintf(fout, "%d\t%d\n", a, b);
+// 				validpair++;
+// 			}
+// 		}
+// 	fclose(fout);
+// 	printf("Complete. Valid pair by Sig:\t%d\n", validpair);
+// }
 
-int main()
+int main(int argc, char **argv)
 {
     read_shingle_matrix();
     // for (int i = 0; i < 4; i++)
@@ -188,14 +207,59 @@ int main()
     // {
     //     printf("%d+%d\n", sig_hash_a[i], sig_hash_b[i]);
     // }
-    compute_sig();
-    printf("\nSig Matrix\n");
-    for (int i = 0; i < DOCCOUNT; i++)
-    {
-        for (int j = 0; j < HASHCOUNT; j++)
+
+
+    // compute_sig();
+
+
+    // ==============mpi signature computing===============
+    MPI_Init(&argc,&argv);
+
+    int world_size, world_rank;
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+
+    if (world_rank == 0) {
+        for (int i = 0; i < 4; i++)
         {
-            printf("%d ", sig[i][j]);
+            for (int j = 0; j < 4; j++)
+                printf("%u", shingle[i][j]);
+            printf("\n");
         }
-        printf("\n");
     }
+
+    // initialize sig matrix
+    memset(sig, 0xFFFF, sizeof(sig));
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    // determine range according to pid
+    int docs_per_proc = DOCCOUNT / world_size;
+    int start_index = world_rank * docs_per_proc;
+    int end_index = (world_rank + 1) * docs_per_proc;
+    if (world_rank == world_size - 1) {
+        end_index = DOCCOUNT;
+    }
+
+    // calculate part of the signature
+    compute_sig_partial(start_index, end_index);
+
+    // gather result to master process
+    MPI_Gather(sig[start_index], docs_per_proc * HASHCOUNT, MPI_UINT16_T,
+            sig, docs_per_proc * HASHCOUNT, MPI_UINT16_T,
+            0, MPI_COMM_WORLD);
+
+    MPI_Finalize();
+
+    if (world_rank == 0) {
+        printf("\nSig Matrix\n");
+        for (int i = 0; i < DOCCOUNT; i++)
+        {
+            for (int j = 0; j < HASHCOUNT; j++)
+            {
+                printf("%d ", sig[i][j]);
+            }
+            printf("\n");
+        }
+    }
+    return 0;
 }
