@@ -23,6 +23,13 @@ We will parallelize the LSH using MPI and OpenMP target. Both the MinHashing and
 ## Expected Results
 We will test the runtime and efficiency of the algorithm with different numbers of nodes and threads by running the program on the CARC clusters. We are expected to see a similar efficiency pattern with strong scaling with more nodes and threads, while the runtime should decrease.
 
+## Instruction
+
+```
+cd src/
+mpicc -O -o lsh lsh.c -lm
+sbatch lsh.sl
+```
 
 ## Reference
 [1] https://www.pinecone.io/learn/series/faiss/locality-sensitive-hashing/
