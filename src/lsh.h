@@ -13,14 +13,14 @@
 #define LINEOFROWS 2
 #define HASHCOUNT (BANDCOUNT * LINEOFROWS)
 
-// #define THRESHOLD 0.83
+#define THRESHOLD 0.5
 
 void read_shingle_matrix();
 
 void compute_sig();
 
-void genCandbySig();
-
 void compute_LSH();
+
+void check_valid_pairs();
 
 #endif

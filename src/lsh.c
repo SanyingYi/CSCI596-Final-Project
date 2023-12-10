@@ -19,7 +19,7 @@ uint32_t sig_hash_b[HASHCOUNT]; // the interception b of the signature hash func
 uint8_t shingle[DOCCOUNT][SHINGLECOUNT]; // read the doc-shingle 0-1 matrix to this matrix
 uint16_t sig[DOCCOUNT][HASHCOUNT];       // the signature matrix
 
-// int lshValidPairs = 0;
+int lshValidPairs = 0;
 
 // ====================Read the doc-shingle 0-1 matrix from the text file to variable matrix====================
 void read_shingle_matrix()
@@ -177,8 +177,7 @@ void freeSet(struct Set *set) {
 void compute_LSH()
 {
     int flag=0;
-    // size_t initialCapacity = DOCCOUNT;
-    size_t initialCapacity = 10;
+    size_t initialCapacity = DOCCOUNT;
     initializeSet(&candidatePairSet, initialCapacity);
     for (int i = 0; i < BANDCOUNT; i++) // iterate through every band
     {
@@ -202,6 +201,35 @@ void compute_LSH()
     }
 }
 
+
+//====================Check Candidate Pairs to Filter Out Valid Pairs====================
+
+void check_valid_pairs(const struct Set *set){
+    double intersection_num=0.0, union_num=0.0;
+    double similarity = 0.0;
+    for (size_t i = 0; i < set->size; i++) {
+        intersection_num=0;
+        union_num=0;
+        // printf("(%d, %d) ", set->elements[i].first, set->elements[i].second);
+        for (int j =0;j<SHINGLECOUNT; j++){
+            if (shingle[set->elements[i].first][j]==1 && shingle[set->elements[i].second][j]==1){
+                intersection_num++;
+                union_num++;
+            }
+            else if((shingle[set->elements[i].first][j]==1 && shingle[set->elements[i].second][j]==0)||
+            (shingle[set->elements[i].first][j]==0 && shingle[set->elements[i].second][j]==1)){
+                union_num++;
+            }
+        }
+        similarity = intersection_num/union_num;
+        // printf("\n%f", similarity);
+        if (similarity>=THRESHOLD){
+            lshValidPairs++;
+            printf("(%d, %d) ", set->elements[i].first, set->elements[i].second);
+        }
+    }
+    printf("\nValid Pairs In Total: %d", lshValidPairs);
+}
 
 
 int main()
@@ -229,6 +257,8 @@ int main()
     //     printf("\n");
     // }
     compute_LSH();
-    printSet(&candidatePairSet);
+    // printSet(&candidatePairSet);
+    printf("Valid Pair Results: \n");
+    check_valid_pairs(&candidatePairSet);
     freeSet(&candidatePairSet);
 }
