@@ -10,8 +10,9 @@
 #define MIN(a, b) (a < b ? a : b)
 #define MAX(a, b) (a > b ? a : b)
 
-const char *pathdata = "../data/doc_shingle_matrix.txt";
+// const char *pathdata = "../data/doc_shingle_matrix.txt";
 // const char *pathdata = "../data/test_matrix.txt";
+const char *pathdata = "E:/596 final project/data/doc_shingle_matrix_240_10232.txt";
 
 uint32_t sig_hash_a[HASHCOUNT]; // the slope a of the signature hash functions
 uint32_t sig_hash_b[HASHCOUNT]; // the interception b of the signature hash functions

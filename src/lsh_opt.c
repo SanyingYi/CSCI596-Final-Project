@@ -12,7 +12,8 @@
 
 // const char *pathdata = "../data/doc_shingle_matrix.txt";
 // const char *pathdata = "../data/test_matrix.txt";
-const char *pathdata = "E:/553 data mining homework/HW3/data/doc_shingle_matrix.txt";
+// const char *pathdata = "E:/596 final project/data/doc_shingle_matrix.txt";
+const char *pathdata = "E:/596 final project/data/doc_shingle_matrix_2400_10232.txt";
 
 uint32_t sig_hash_a[HASHCOUNT]; // the slope a of the signature hash functions
 uint32_t sig_hash_b[HASHCOUNT]; // the interception b of the signature hash functions
@@ -190,7 +191,7 @@ void compute_LSH()
     size_t initialCapacity = DOCCOUNT;
     // initializeSet(&candidatePairSet, initialCapacity);
     initializeSet(&validPairSet, initialCapacity);
-    for (int i = 0; i < BANDCOUNT; i++) // iterate through every band
+    for (int i = 0; i < BANDCOUNT; i++) // iterate through every band  for (int i = 0; i < BANDCOUNT; i++)
     {
         for (int j = 0; j < DOCCOUNT-1; j++) // hash every sig. piece in the band to the bucket
         {

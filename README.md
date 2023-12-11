@@ -20,6 +20,13 @@ We will parallelize the LSH using MPI and OpenMP target. Both the MinHashing and
 * Banded LSH function：We will get candidate pairs from b bands. For each band, we need to check for each document if its signature pieces are the same as others. If so, they are the candidate pairs. We will split b bands to 2 MPI nodes, while each node has an OpenMP master thread with league of teams. Each team will deal with one band, with OpenMP pragma directive to parallelize the nested loops for the comparisons between every pair of signature pieces. Below is the architecture design:
 ![Banded LSH architecture](img/alg_design_img/banded_lsh.png)
 
+* Valid pair check: After getting candidate pairs from the banded LSH function. We need to check the real similarity for each pair to filter out valid pairs with a similarity larger than or equal to the threshold. To get the Jaccard similarity bewtween a pair of documents, we need to iterate through each element of the sparse 0-1 matrix of the first step. The process is homework-alike because we want to collect the intersection number and the union number of the vecotr pairs, which can be distribute to different threads and get the reduction results. 
+
+## Code Structure Introduction
+* lsh.c: the basic version of c code containing the whole process. Construct a Set structure to store the candidate pair results.
+* lsh_opt.c: a optimization version of lsh.c. Due to the race conditions related to Set operations, we found that it's difficult to design an efficient parallelization process since the majority computation cost falls into the Set operations. In order to reduce some omp critical operations, we build this version. By changing the candidate pair set to the valid pair set, we reduce the number of set operations while increasing the checking similarity operations which can be better parallelized.
+* lsh.h: the header file that contains the declarations of functions and constants.
+
 ## Expected Results
 We will test the runtime and efficiency of the algorithm with different numbers of nodes and threads by running the program on the CARC clusters. We are expected to see a similar efficiency pattern with strong scaling with more nodes and threads, while the runtime should decrease.
 
