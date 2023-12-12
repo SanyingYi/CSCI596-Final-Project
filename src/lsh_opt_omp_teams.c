@@ -1,3 +1,4 @@
+#include <omp.h>
 #include "lsh.h"
 #include <stdlib.h>
 #include <string.h>
@@ -6,13 +7,18 @@
 #include <stdint.h>
 #include <time.h>
 #include <stdbool.h>
+#include <limits.h>
+
+#define SIG_NTMS 72
+#define SIG_NTRD HASHCOUNT
 
 #define MIN(a, b) (a < b ? a : b)
 #define MAX(a, b) (a > b ? a : b)
 
 // const char *pathdata = "../data/doc_shingle_matrix.txt";
+const char *pathdata = "../data/doc_shingle_real_data.txt";
 // const char *pathdata = "../data/test_matrix.txt";
-const char *pathdata = "E:/596 final project/data/doc_shingle_matrix_240_10232.txt";
+// const char *pathdata = "../data/doc_shingle_matrix_2400_10232.txt";
 
 uint32_t sig_hash_a[HASHCOUNT]; // the slope a of the signature hash functions
 uint32_t sig_hash_b[HASHCOUNT]; // the interception b of the signature hash functions
@@ -74,26 +80,53 @@ void generate_hash_function()
 // ==================== Minhash Function to Generate Signature Matrix====================
 void compute_sig()
 {
+    // clock_t start_time = clock();
+    double start_time = omp_get_wtime();
     printf("Compute Sig ...\n");
 
     memset(sig, 0xFFFF, sizeof(sig));
 
-    for (int i = 0; i < DOCCOUNT; i++) // for every document
+    // for (int i = 0; i < DOCCOUNT; i++)
+    //     for (int j = 0; j < HASHCOUNT; j++)
+    //         sig[i][j] = INT_MAX;
+#pragma omp target teams map(DOCCOUNT, HASHCOUNT, SHINGLECOUNT, shingle, sig_hash_a, sig_hash_b, sig) num_teams(SIG_NTMS)
     {
-        for (int k = 0; k < HASHCOUNT; k++) // every hash function
+
+        // for (int i = 0; i < DOCCOUNT; i++) // for every document
+        // {
+#pragma omp distribute
+        for (int t = 0; t < SIG_NTMS; t++)
         {
-            for (int j = 0; j < SHINGLECOUNT; j++) // loop through all shingle indexes to find min index with value 1
+            int ibgn = DOCCOUNT / SIG_NTMS * t;
+            int iend = DOCCOUNT / SIG_NTMS * (t + 1);
+            if (t == SIG_NTMS - 1)
+                iend = DOCCOUNT;
+            for (int i = ibgn; i < iend; i++)
             {
-                if (shingle[i][j] == 1)
+#pragma omp parallel for num_threads(SIG_NTRD)
+                for (int k = 0; k < HASHCOUNT; k++) // every hash function
                 {
-                    unsigned int res = (((long long)sig_hash_a[k] * j + sig_hash_b[k]) % 233333333333ULL) % SHINGLECOUNT;
-                    // printf("%d ", res);
-                    sig[i][k] = MIN(sig[i][k], res);
+                    for (int j = 0; j < SHINGLECOUNT; j++) // loop through all shingle indexes to find min index with value 1
+                    {
+                        if (shingle[i][j] == 1)
+                        {
+                            unsigned int res = (((long long)sig_hash_a[k] * j + sig_hash_b[k]) % 233333333333) % SHINGLECOUNT;
+                            // printf("%d ", res);
+                            sig[i][k] = MIN(sig[i][k], res);
+                        }
+                    }
+                    // printf("\n");
                 }
             }
-            // printf("\n");
         }
     }
+
+    // clock_t end_time = clock();
+    double end_time = omp_get_wtime();
+
+    // Calculate the elapsed time in seconds
+    // double elapsed_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
+    printf("Time for computing signature matrix: %f seconds\n", end_time - start_time);
 }
 
 // ==================== Banded LSH Function to Generate Candidate Pairs====================
@@ -110,7 +143,8 @@ struct Set
     size_t capacity;
 };
 
-struct Set candidatePairSet;
+// struct Set candidatePairSet;
+struct Set validPairSet;
 
 // initialize a set
 void initializeSet(struct Set *set, size_t initialCapacity)
@@ -154,17 +188,16 @@ void resizeSet(struct Set *set, size_t newCapacity)
 void addToSet(struct Set *set, const struct Tuple *element)
 {
     // Check if the tuple is already in the set
-    if (!isInSet(set, element))
+    // if (!isInSet(set, element)) {
+    // Add the tuple to the set
+    if (set->size == set->capacity)
     {
-        // Add the tuple to the set
-        if (set->size == set->capacity)
-        {
-            // Double the capacity (you can choose a different resizing strategy)
-            resizeSet(set, set->capacity * 2);
-        }
-        // Add the tuple to the set
-        set->elements[set->size++] = *element;
+        // Double the capacity (you can choose a different resizing strategy)
+        resizeSet(set, set->capacity * 2);
     }
+    // Add the tuple to the set
+    set->elements[set->size++] = *element;
+    // }
 }
 
 // Function to print the elements of the set
@@ -189,10 +222,13 @@ void freeSet(struct Set *set)
 
 void compute_LSH()
 {
+    clock_t start_time = clock();
+
     int flag = 0;
     size_t initialCapacity = DOCCOUNT;
-    initializeSet(&candidatePairSet, initialCapacity);
-    for (int i = 0; i < BANDCOUNT; i++) // iterate through every band
+    // initializeSet(&candidatePairSet, initialCapacity);
+    initializeSet(&validPairSet, initialCapacity);
+    for (int i = 0; i < BANDCOUNT; i++) // iterate through every band  for (int i = 0; i < BANDCOUNT; i++)
     {
         for (int j = 0; j < DOCCOUNT - 1; j++) // hash every sig. piece in the band to the bucket
         {
@@ -210,34 +246,43 @@ void compute_LSH()
                 if (flag == 0)
                 {
                     // printf("%d, %d\n", j, k);
-                    struct Tuple candidate = {(uint16_t)j, (uint16_t)k};
-                    addToSet(&candidatePairSet, &candidate);
+                    // struct Tuple candidate = {(uint16_t)j, (uint16_t)k};
+                    // addToSet(&candidatePairSet, &candidate);
+                    check_valid_pairs(&validPairSet, j, k);
                 }
             }
         }
     }
+    // Record the end time
+    clock_t end_time = clock();
+
+    // Calculate the elapsed time in seconds
+    double elapsed_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
+    printf("Time for generating valid pairs: %f seconds\n", elapsed_time);
 }
 
 //====================Check Candidate Pairs to Filter Out Valid Pairs====================
 
-void check_valid_pairs(const struct Set *set)
+void check_valid_pairs(const struct Set *set, int j, int k)
 {
     double intersection_num = 0.0, union_num = 0.0;
     double similarity = 0.0;
-    for (size_t i = 0; i < set->size; i++)
+    // for (size_t i = 0; i < set->size; i++) {
+    // intersection_num=0;
+    // union_num=0;
+    // printf("(%d, %d) ", set->elements[i].first, set->elements[i].second);
+    struct Tuple candidate = {(uint16_t)j, (uint16_t)k};
+    if (!isInSet(&validPairSet, &candidate))
     {
-        intersection_num = 0;
-        union_num = 0;
-        // printf("(%d, %d) ", set->elements[i].first, set->elements[i].second);
-        for (int j = 0; j < SHINGLECOUNT; j++)
+        for (int s = 0; s < SHINGLECOUNT; s++)
         {
-            if (shingle[set->elements[i].first][j] == 1 && shingle[set->elements[i].second][j] == 1)
+            if (shingle[j][s] == 1 && shingle[k][s] == 1)
             {
                 intersection_num++;
                 union_num++;
             }
-            else if ((shingle[set->elements[i].first][j] == 1 && shingle[set->elements[i].second][j] == 0) ||
-                     (shingle[set->elements[i].first][j] == 0 && shingle[set->elements[i].second][j] == 1))
+            else if ((shingle[j][s] == 1 && shingle[k][s] == 0) ||
+                     (shingle[j][s] == 0 && shingle[k][s] == 1))
             {
                 union_num++;
             }
@@ -246,11 +291,17 @@ void check_valid_pairs(const struct Set *set)
         // printf("\n%f", similarity);
         if (similarity >= THRESHOLD)
         {
+            // struct Tuple candidate = {(uint16_t)j, (uint16_t)k};
+            // if (!isInSet(&validPairSet, &candidate)) {
             lshValidPairs++;
-            printf("(%d, %d) ", set->elements[i].first, set->elements[i].second);
+            addToSet(&validPairSet, &candidate);
+            // printf("(%d, %d) ", set->elements[i].first, set->elements[i].second);
+
+            // }
+            // printf("(%d, %d) ", set->elements[i].first, set->elements[i].second);
         }
     }
-    printf("\nValid Pairs In Total: %d", lshValidPairs);
+    // printf("\nValid Pairs In Total: %d", lshValidPairs);
 }
 
 int main()
@@ -268,6 +319,7 @@ int main()
     //     printf("%d+%d\n", sig_hash_a[i], sig_hash_b[i]);
     // }
     compute_sig();
+
     // printf("\nSig Matrix\n");
     // for (int i = 0; i < DOCCOUNT; i++)
     // {
@@ -277,9 +329,14 @@ int main()
     //     }
     //     printf("\n");
     // }
-    compute_LSH();
-    // printSet(&candidatePairSet);
-    printf("Valid Pair Results: \n");
-    check_valid_pairs(&candidatePairSet);
-    freeSet(&candidatePairSet);
+
+    // compute_LSH();
+    // // printSet(&candidatePairSet);
+    // // printf("Valid Pair Results: \n");
+    // printf("Valid Pairs In Total: %d\n", lshValidPairs);
+    // printSet(&validPairSet);
+    // // check_valid_pairs(&candidatePairSet);
+    // // freeSet(&candidatePairSet);
+    // freeSet(&validPairSet);
+    return 0;
 }

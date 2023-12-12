@@ -1,5 +1,5 @@
-#include "lsh.h"
 #include <stdlib.h>
+#include "lsh.h"
 #include <string.h>
 #include <stdio.h>
 #include <assert.h>
@@ -13,7 +13,8 @@
 // const char *pathdata = "../data/doc_shingle_matrix.txt";
 // const char *pathdata = "../data/test_matrix.txt";
 // const char *pathdata = "E:/596 final project/data/doc_shingle_matrix.txt";
-const char *pathdata = "E:/596 final project/data/doc_shingle_matrix_2400_10232.txt";
+// const char *pathdata = "E:/596 final project/data/doc_shingle_real_data.txt";
+const char *pathdata = "../data/doc_shingle_real_data.txt";
 
 uint32_t sig_hash_a[HASHCOUNT]; // the slope a of the signature hash functions
 uint32_t sig_hash_b[HASHCOUNT]; // the interception b of the signature hash functions
@@ -67,8 +68,8 @@ void generate_hash_function()
     srand(time(NULL));
     for (int i = 0; i < HASHCOUNT; i++)
     {
-        sig_hash_a[i] = (uint32_t)rand();
-        sig_hash_b[i] = (uint32_t)rand();
+        sig_hash_a[i] = rand();
+        sig_hash_b[i] = rand();
     }
 }
 
@@ -79,9 +80,6 @@ void compute_sig()
     printf("Compute Sig ...\n");
 
     memset(sig, 0xFFFF, sizeof(sig));
-    for (int i = 0; i < DOCCOUNT; i++)
-        for (int j = 0; j < HASHCOUNT; j++)
-            sig[i][j] = 0xFFFF;
 
     for (int i = 0; i < DOCCOUNT; i++) // for every document
     {
@@ -91,7 +89,7 @@ void compute_sig()
             {
                 if (shingle[i][j] == 1)
                 {
-                    unsigned int res = (((uint64_t)(sig_hash_a[k] * j + sig_hash_b[k])) % 233333333333ULL) % SHINGLECOUNT;
+                    unsigned int res = (((long long)sig_hash_a[k] * j + sig_hash_b[k]) % 233333333333) % SHINGLECOUNT;
                     // printf("%d ", res);
                     sig[i][k] = MIN(sig[i][k], res);
                 }
@@ -107,12 +105,14 @@ void compute_sig()
 }
 
 // ==================== Banded LSH Function to Generate Candidate Pairs====================
-struct Tuple {
+struct Tuple
+{
     uint16_t first;
     uint16_t second;
 };
 
-struct Set {
+struct Set
+{
     struct Tuple *elements;
     size_t size;
     size_t capacity;
@@ -122,9 +122,11 @@ struct Set {
 struct Set validPairSet;
 
 // initialize a set
-void initializeSet(struct Set *set, size_t initialCapacity) {
+void initializeSet(struct Set *set, size_t initialCapacity)
+{
     set->elements = (struct Tuple *)malloc(initialCapacity * sizeof(struct Tuple));
-    if (set->elements == NULL) {
+    if (set->elements == NULL)
+    {
         perror("Memory allocation failed");
         exit(EXIT_FAILURE);
     }
@@ -133,19 +135,24 @@ void initializeSet(struct Set *set, size_t initialCapacity) {
 }
 
 // Function to check if a tuple is in the set
-bool isInSet(const struct Set *set, const struct Tuple *element) {
-    for (size_t i = 0; i < set->size; i++) {
-        if (set->elements[i].first == element->first && set->elements[i].second == element->second) {
-            return true;  // Tuple found in the set
+bool isInSet(const struct Set *set, const struct Tuple *element)
+{
+    for (size_t i = 0; i < set->size; i++)
+    {
+        if (set->elements[i].first == element->first && set->elements[i].second == element->second)
+        {
+            return true; // Tuple found in the set
         }
     }
-    return false;  // Tuple not found in the set
+    return false; // Tuple not found in the set
 }
 
 // Function to resize the set
-void resizeSet(struct Set *set, size_t newCapacity) {
+void resizeSet(struct Set *set, size_t newCapacity)
+{
     set->elements = (struct Tuple *)realloc(set->elements, newCapacity * sizeof(struct Tuple));
-    if (set->elements == NULL) {
+    if (set->elements == NULL)
+    {
         perror("Memory reallocation failed");
         exit(EXIT_FAILURE);
     }
@@ -153,11 +160,13 @@ void resizeSet(struct Set *set, size_t newCapacity) {
 }
 
 // Function to add a tuple to the set
-void addToSet(struct Set *set, const struct Tuple *element) {
+void addToSet(struct Set *set, const struct Tuple *element)
+{
     // Check if the tuple is already in the set
     // if (!isInSet(set, element)) {
-        // Add the tuple to the set
-    if (set->size == set->capacity) {
+    // Add the tuple to the set
+    if (set->size == set->capacity)
+    {
         // Double the capacity (you can choose a different resizing strategy)
         resizeSet(set, set->capacity * 2);
     }
@@ -167,16 +176,19 @@ void addToSet(struct Set *set, const struct Tuple *element) {
 }
 
 // Function to print the elements of the set
-void printSet(const struct Set *set) {
+void printSet(const struct Set *set)
+{
     printf("{ ");
-    for (size_t i = 0; i < set->size; i++) {
+    for (size_t i = 0; i < set->size; i++)
+    {
         printf("(%d, %d) ", set->elements[i].first, set->elements[i].second);
     }
     printf("}\n");
 }
 
 // Function to free the memory allocated for the set
-void freeSet(struct Set *set) {
+void freeSet(struct Set *set)
+{
     free(set->elements);
     set->elements = NULL;
     set->size = 0;
@@ -187,23 +199,27 @@ void compute_LSH()
 {
     clock_t start_time = clock();
 
-    int flag=0;
+    int flag = 0;
     size_t initialCapacity = DOCCOUNT;
     // initializeSet(&candidatePairSet, initialCapacity);
     initializeSet(&validPairSet, initialCapacity);
     for (int i = 0; i < BANDCOUNT; i++) // iterate through every band  for (int i = 0; i < BANDCOUNT; i++)
     {
-        for (int j = 0; j < DOCCOUNT-1; j++) // hash every sig. piece in the band to the bucket
+        for (int j = 0; j < DOCCOUNT - 1; j++) // hash every sig. piece in the band to the bucket
         {
-            for (int k = j+1; k<DOCCOUNT; k++){
+            for (int k = j + 1; k < DOCCOUNT; k++)
+            {
                 flag = 0;
-                for (int r = 0; r < LINEOFROWS; r++){
-                    if (sig[j][i * LINEOFROWS + r] != sig[k][i * LINEOFROWS + r]){
-                        flag=1;
+                for (int r = 0; r < LINEOFROWS; r++)
+                {
+                    if (sig[j][i * LINEOFROWS + r] != sig[k][i * LINEOFROWS + r])
+                    {
+                        flag = 1;
                         break;
                     }
                 }
-                if(flag==0){
+                if (flag == 0)
+                {
                     // printf("%d, %d\n", j, k);
                     // struct Tuple candidate = {(uint16_t)j, (uint16_t)k};
                     // addToSet(&candidatePairSet, &candidate);
@@ -220,44 +236,48 @@ void compute_LSH()
     printf("Time for generating valid pairs: %f seconds\n", elapsed_time);
 }
 
-
 //====================Check Candidate Pairs to Filter Out Valid Pairs====================
 
-void check_valid_pairs(const struct Set *set, int j, int k){
-    double intersection_num=0.0, union_num=0.0;
+void check_valid_pairs(const struct Set *set, int j, int k)
+{
+    double intersection_num = 0.0, union_num = 0.0;
     double similarity = 0.0;
     // for (size_t i = 0; i < set->size; i++) {
     // intersection_num=0;
     // union_num=0;
     // printf("(%d, %d) ", set->elements[i].first, set->elements[i].second);
     struct Tuple candidate = {(uint16_t)j, (uint16_t)k};
-    if (!isInSet(&validPairSet, &candidate)) {
-        for (int s =0;s<SHINGLECOUNT; s++){
-            if (shingle[j][s]==1 && shingle[k][s]==1){
+    if (!isInSet(&validPairSet, &candidate))
+    {
+        for (int s = 0; s < SHINGLECOUNT; s++)
+        {
+            if (shingle[j][s] == 1 && shingle[k][s] == 1)
+            {
                 intersection_num++;
                 union_num++;
             }
-            else if((shingle[j][s]==1 && shingle[k][s]==0)||
-            (shingle[j][s]==0 && shingle[k][s]==1)){
+            else if ((shingle[j][s] == 1 && shingle[k][s] == 0) ||
+                     (shingle[j][s] == 0 && shingle[k][s] == 1))
+            {
                 union_num++;
             }
         }
-        similarity = intersection_num/union_num;
+        similarity = intersection_num / union_num;
         // printf("\n%f", similarity);
-        if (similarity>=THRESHOLD){
+        if (similarity >= THRESHOLD)
+        {
             // struct Tuple candidate = {(uint16_t)j, (uint16_t)k};
             // if (!isInSet(&validPairSet, &candidate)) {
             lshValidPairs++;
             addToSet(&validPairSet, &candidate);
-                // printf("(%d, %d) ", set->elements[i].first, set->elements[i].second);
-                            
+            // printf("(%d, %d) ", set->elements[i].first, set->elements[i].second);
+
             // }
-        // printf("(%d, %d) ", set->elements[i].first, set->elements[i].second);
+            // printf("(%d, %d) ", set->elements[i].first, set->elements[i].second);
         }
     }
     // printf("\nValid Pairs In Total: %d", lshValidPairs);
 }
-
 
 int main()
 {
@@ -283,12 +303,13 @@ int main()
     //     }
     //     printf("\n");
     // }
-    compute_LSH();
-    // printSet(&candidatePairSet);
-    // printf("Valid Pair Results: \n");
-    printf("Valid Pairs In Total: %d\n", lshValidPairs);
-    printSet(&validPairSet);
-    // check_valid_pairs(&candidatePairSet);
-    // freeSet(&candidatePairSet);
-    freeSet(&validPairSet);
+
+    // compute_LSH();
+    // // printSet(&candidatePairSet);
+    // // printf("Valid Pair Results: \n");
+    // printf("Valid Pairs In Total: %d\n", lshValidPairs);
+    // printSet(&validPairSet);
+    // // check_valid_pairs(&candidatePairSet);
+    // // freeSet(&candidatePairSet);
+    // freeSet(&validPairSet);
 }
