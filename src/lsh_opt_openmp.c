@@ -151,7 +151,7 @@ void initializeSet(struct Set *set, size_t initialCapacity)
 }
 
 // Function to check if a tuple is in the set
-bool isInSet(const struct Set *set, const struct Tuple *element)
+bool isInSet(struct Set *set, const struct Tuple *element)
 {
     for (size_t i = 0; i < set->size; i++)
     {
@@ -213,14 +213,25 @@ void freeSet(struct Set *set)
 
 void compute_LSH()
 {
-    clock_t start_time = clock();
+    // clock_t start_time = clock();
+    double start_time = omp_get_wtime();
 
     int flag = 0;
     size_t initialCapacity = DOCCOUNT;
+    struct Set thereadSet[nthrd];
+
+    for (int i = 0; i < nthrd; i++) {
+        initializeSet(&thereadSet[i], initialCapacity);
+    }
     // initializeSet(&candidatePairSet, initialCapacity);
     initializeSet(&validPairSet, initialCapacity);
+
+    omp_set_num_threads(nthrd);
+
+    #pragma omp parallel for
     for (int i = 0; i < BANDCOUNT; i++) // iterate through every band  for (int i = 0; i < BANDCOUNT; i++)
     {
+        int pid = omp_get_thread_num();
         for (int j = 0; j < DOCCOUNT - 1; j++) // hash every sig. piece in the band to the bucket
         {
             for (int k = j + 1; k < DOCCOUNT; k++)
@@ -239,22 +250,35 @@ void compute_LSH()
                     // printf("%d, %d\n", j, k);
                     // struct Tuple candidate = {(uint16_t)j, (uint16_t)k};
                     // addToSet(&candidatePairSet, &candidate);
-                    check_valid_pairs(&validPairSet, j, k);
+                    check_valid_pairs(&thereadSet[pid], j, k);
                 }
             }
         }
     }
     // Record the end time
-    clock_t end_time = clock();
+    // clock_t end_time = clock();
+    double end_time = omp_get_wtime();
+
+    for (int i = 0; i < nthrd; i++) {
+        for (int j = 0; j < thereadSet[i].size; j++) {
+            if (!isInSet(&validPairSet, &thereadSet[i].elements[j])){
+                lshValidPairs++;
+                addToSet(&validPairSet, &thereadSet[i].elements[j]);
+            }
+        }
+    }
+
+    double end_time2 = omp_get_wtime();
 
     // Calculate the elapsed time in seconds
-    double elapsed_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
-    printf("Time for generating valid pairs: %f seconds\n", elapsed_time);
+    // double elapsed_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
+    printf("Time for generating valid pairs: %f seconds\n", end_time - start_time);
+    printf("Time for merging sets: %f seconds\n", end_time2 - end_time);
 }
 
 //====================Check Candidate Pairs to Filter Out Valid Pairs====================
 
-void check_valid_pairs(const struct Set *set, int j, int k)
+void check_valid_pairs(struct Set *set, int j, int k)
 {
     double intersection_num = 0.0, union_num = 0.0;
     double similarity = 0.0;
@@ -263,7 +287,7 @@ void check_valid_pairs(const struct Set *set, int j, int k)
     // union_num=0;
     // printf("(%d, %d) ", set->elements[i].first, set->elements[i].second);
     struct Tuple candidate = {(uint16_t)j, (uint16_t)k};
-    if (!isInSet(&validPairSet, &candidate))
+    if (!isInSet(set, &candidate))
     {
         for (int s = 0; s < SHINGLECOUNT; s++)
         {
@@ -284,8 +308,8 @@ void check_valid_pairs(const struct Set *set, int j, int k)
         {
             // struct Tuple candidate = {(uint16_t)j, (uint16_t)k};
             // if (!isInSet(&validPairSet, &candidate)) {
-            lshValidPairs++;
-            addToSet(&validPairSet, &candidate);
+            // lshValidPairs++;
+            addToSet(set, &candidate);
             // printf("(%d, %d) ", set->elements[i].first, set->elements[i].second);
 
             // }
@@ -321,13 +345,13 @@ int main()
     //     printf("\n");
     // }
 
-    // compute_LSH();
+    compute_LSH();
     // // printSet(&candidatePairSet);
     // // printf("Valid Pair Results: \n");
-    // printf("Valid Pairs In Total: %d\n", lshValidPairs);
-    // printSet(&validPairSet);
+    printf("Valid Pairs In Total: %d\n", lshValidPairs);
+    printSet(&validPairSet);
     // // check_valid_pairs(&candidatePairSet);
     // // freeSet(&candidatePairSet);
-    // freeSet(&validPairSet);
+    freeSet(&validPairSet);
     return 0;
 }
