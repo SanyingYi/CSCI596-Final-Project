@@ -12,7 +12,8 @@
 #define MIN(a, b) (a < b ? a : b)
 #define MAX(a, b) (a > b ? a : b)
 
-const char *pathdata = "../data/doc_shingle_matrix.txt";
+// const char *pathdata = "../data/doc_shingle_matrix.txt";
+const char *pathdata = "../data/doc_shingle_real_data.txt";
 // const char *pathdata = "../data/test_matrix.txt";
 // const char *pathdata = "E:/553 data mining homework/HW3/data/doc_shingle_matrix.txt";
 
