@@ -1,6 +1,3 @@
-#ifndef LSH_H
-#define LSH_H
-
 #include <stdint.h>
 
 #define DOCCOUNT 24000
@@ -23,4 +20,3 @@ void compute_LSH();
 
 void check_valid_pairs();
 
-#endif
