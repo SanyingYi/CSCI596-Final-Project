@@ -316,6 +316,10 @@ int main(int argc, char **argv)
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
     MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 
+    clock_t start_time;
+    if (world_rank == 0) {
+        start_time = clock();
+    }
     // if (world_rank == 0) {
     //     for (int i = 0; i < 4; i++)
     //     {
@@ -345,19 +349,30 @@ int main(int argc, char **argv)
             sig, docs_per_proc * HASHCOUNT, MPI_UINT16_T,
             0, MPI_COMM_WORLD);
 
+    if (world_rank == 0) {
+        // Record the end time
+        clock_t end_time = clock();
+
+        // Calculate the elapsed time in seconds
+        double elapsed_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
+        printf("Time for generating valid pairs: %f seconds\n", elapsed_time);
+    }
+
     MPI_Finalize();
 
-    if (world_rank == 0) {
-        printf("\nSig Matrix\n");
-        for (int i = 0; i < DOCCOUNT; i++)
-        {
-            for (int j = 0; j < HASHCOUNT; j++)
-            {
-                printf("%d ", sig[i][j]);
-            }
-            printf("\n");
-        }
-    }
+
+
+    // if (world_rank == 0) {
+    //     printf("\nSig Matrix\n");
+    //     for (int i = 0; i < DOCCOUNT; i++)
+    //     {
+    //         for (int j = 0; j < HASHCOUNT; j++)
+    //         {
+    //             printf("%d ", sig[i][j]);
+    //         }
+    //         printf("\n");
+    //     }
+    // }
     return 0;
 
 
