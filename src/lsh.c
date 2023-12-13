@@ -12,7 +12,8 @@
 
 // const char *pathdata = "../data/doc_shingle_matrix.txt";
 // const char *pathdata = "../data/test_matrix.txt";
-const char *pathdata = "E:/596 final project/data/doc_shingle_matrix_240_10232.txt";
+// const char *pathdata = "E:/596 final project/data/doc_shingle_real_data.txt";
+const char *pathdata = "../data/doc_shingle_real_data.txt";
 
 uint32_t sig_hash_a[HASHCOUNT]; // the slope a of the signature hash functions
 uint32_t sig_hash_b[HASHCOUNT]; // the interception b of the signature hash functions
@@ -74,6 +75,7 @@ void generate_hash_function()
 // ==================== Minhash Function to Generate Signature Matrix====================
 void compute_sig()
 {
+    clock_t start_time = clock();
     printf("Compute Sig ...\n");
 
     memset(sig, 0xFFFF, sizeof(sig));
@@ -86,7 +88,7 @@ void compute_sig()
             {
                 if (shingle[i][j] == 1)
                 {
-                    unsigned int res = (((long long)sig_hash_a[k] * j + sig_hash_b[k]) % 233333333333ULL) % SHINGLECOUNT;
+                    unsigned int res = (((long long)sig_hash_a[k] * j + sig_hash_b[k]) % 233333333333) % SHINGLECOUNT;
                     // printf("%d ", res);
                     sig[i][k] = MIN(sig[i][k], res);
                 }
@@ -94,6 +96,12 @@ void compute_sig()
             // printf("\n");
         }
     }
+
+    clock_t end_time = clock();
+
+    // Calculate the elapsed time in seconds
+    double elapsed_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
+    printf("Time for computing signature matrix: %f seconds\n", elapsed_time);
 }
 
 // ==================== Banded LSH Function to Generate Candidate Pairs====================
@@ -277,9 +285,15 @@ int main()
     //     }
     //     printf("\n");
     // }
+    clock_t start_time = clock();
     compute_LSH();
     // printSet(&candidatePairSet);
     printf("Valid Pair Results: \n");
     check_valid_pairs(&candidatePairSet);
+    // Record the end time
+    clock_t end_time = clock();
+    // Calculate the elapsed time in seconds
+    double elapsed_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
+    printf("Time for generating valid pairs: %f seconds\n", elapsed_time);
     freeSet(&candidatePairSet);
 }

@@ -304,12 +304,12 @@ int main()
     //     printf("\n");
     // }
 
-    // compute_LSH();
-    // // printSet(&candidatePairSet);
-    // // printf("Valid Pair Results: \n");
-    // printf("Valid Pairs In Total: %d\n", lshValidPairs);
-    // printSet(&validPairSet);
-    // // check_valid_pairs(&candidatePairSet);
-    // // freeSet(&candidatePairSet);
-    // freeSet(&validPairSet);
+    compute_LSH();
+    // printSet(&candidatePairSet);
+    // printf("Valid Pair Results: \n");
+    printf("Valid Pairs In Total: %d\n", lshValidPairs);
+    printSet(&validPairSet);
+    // check_valid_pairs(&candidatePairSet);
+    // freeSet(&candidatePairSet);
+    freeSet(&validPairSet);
 }

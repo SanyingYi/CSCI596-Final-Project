@@ -12,7 +12,7 @@ Locality Sensitive Hashing (LSH) is a popular technique used for efficient appro
 3. Banded LSH function: In order to find signature pairs that share even some similarity and further improve the efficiency, we segment the signatures into bands b (each has r rows), and pass each band through a hash function. Mark the ones that are hashed to the same bucket as candidate pairs. Repeat the process for each band.
 ![band lsh example](img/alg_design_img/image-1.png)
 
-## Implementation Methods
+## Implementation Methods Design
 We will parallelize the LSH using MPI and OpenMP target. Both the MinHashing and Banded LSH functions are possible to be parallelized.
 * MinHashing: There are n documents which need to generate the signatures. For each document, there are x hash functions to be applied to y rows to get the signature with x numbers. We will split them to 2 MPI nodes, while each node has an OpenMP master thread with league of teams. Each team will deal with one document, with OpenMP pragma directive to parallelize the nested loops regarding the hash functions. Below is the architecture design:
 ![minhash architecture](img/alg_design_img/minhash.png)
@@ -24,11 +24,20 @@ We will parallelize the LSH using MPI and OpenMP target. Both the MinHashing and
 
 ## Code Structure Introduction
 * lsh.c: the basic version of c code containing the whole process. Construct a Set structure to store the candidate pair results.
-* lsh_opt.c: a optimization version of lsh.c. Due to the race conditions related to Set operations, we found that it's difficult to design an efficient parallelization process since the majority computation cost falls into the Set operations. In order to reduce some omp critical operations, we build this version. By changing the candidate pair set to the valid pair set, we reduce the number of set operations while increasing the checking similarity operations which can be better parallelized.
-* lsh.h: the header file that contains the declarations of functions and constants.
+* lsh_opt.c: a optimization version of lsh.c. Due to the race conditions related to Set operations, we found that it's difficult to design an efficient parallelization process since the majority computation cost falls into the Set operations. In order to reduce some omp critical operations, we build this version. By changing the candidate pair set to the valid pair set, we reduce the number of set operations while increasing the checking similarity operations which can be better parallelized. **We will use it as the benchmark for parallelization tasks.**
+* lsh.h: the header file that contains the declarations of functions and constants. All the .c files will use this header file.
+* lsh_opt_omp_openmp.c: Parallelized signature matrix computation and candidate pairs computation using OpenMP.
+* lsh_opt_omp_teams.c: Parallelized signature matrix computation and candidate pairs computation using OpenMP target offload.
 
 ## Expected Results
 We will test the runtime and efficiency of the algorithm with different numbers of nodes and threads by running the program on the CARC clusters. We are expected to see a similar efficiency pattern with strong scaling with more nodes and threads, while the runtime should decrease.
+
+## Analysis
+### Runtime comparasion between lsh.c and lsh_opt.c: 
+* For lsh.c:\ Time for computing signature matrix: 42.359000 seconds.\ Time focr generating valid pairs: >30mins
+* For lsh_opt.c:\ Time for computing signature matrix: 41.194000 seconds.\ Time focr generating valid pairs: 46.855000 seconds.\ Valid Pairs In Total: 644 -> We will try to do parallelization use this version. 
+
+### OpenMP Results
 
 
 ## Reference
