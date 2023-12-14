@@ -22,7 +22,7 @@ We will parallelize the LSH using MPI and OpenMP target. Both the MinHashing and
 
 * Valid pair check: After getting candidate pairs from the banded LSH function. We need to check the real similarity for each pair to filter out valid pairs with a similarity larger than or equal to the threshold. To get the Jaccard similarity bewtween a pair of documents, we need to iterate through each element of the sparse 0-1 matrix of the first step. The process is homework-alike because we want to collect the intersection number and the union number of the vecotr pairs, which can be distribute to different threads and get the reduction results. 
 
-## Code Structure Introduction
+## Directory Structure Introduction
 ### data folder
 It contains the real input data that we used to test the performance of our algorithm and a small 4x4 matrix data used for testing the correctness of the algorithm.
 * input_data_link.txt: this is the google drive link to the real input data. Since the text file of the real input data is 531 MB, we put it on the google drive. You can download it and change the pathdata variable in the code files to run. It is the sparse 0-1 matrix getting from the first step. Each line corresponds to a document and each column corresponds to a shingle.
