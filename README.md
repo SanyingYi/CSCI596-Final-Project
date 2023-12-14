@@ -63,8 +63,8 @@ We will test the runtime and efficiency of the algorithm with different parallel
 To compile the OpenMP code and run it on CARC, we need to use the following command:
 ```
 $ module load gcc
-$ gcc -fopenmp -O -o lsh_opt_omp_openmp lsh_opt_omp_openmp.c
-$ sbatch lsh_opt_omp_openmp.sl
+$ gcc -fopenmp -O -o lsh_opt_openmp lsh_opt_openmp.c
+$ sbatch lsh_opt_openmp.sl
 ```
 The output will be saved in the file defined in the ```.sl``` file, starting with the number of threads and then the runtime and valid pairs in total.
 
