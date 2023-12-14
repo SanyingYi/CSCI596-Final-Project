@@ -39,7 +39,45 @@ It contains the real input data that we used to test the performance of our algo
 * lsh_mpi.sl: the .sl file to run the lsh_mpi.c file and generate the output.
 
 ## Parallelization Implementation
-When we tried to parallelize the algorithm, we found that combining valid pair checking step to the banded LSH function can get better performance. Therefore we parallelize the compute_LSH() function instead of parallelizing those functions separately.
+When we tried to parallelize the algorithm, we found that combining valid pair checking step to the banded LSH function can get better performance, i.e. instead of creating an intermediate candidate set to save all candidate pairs, we will check the similarity of each candidate pair immediately and only save valid pairs to a final result set. Therefore we parallelize the compute_LSH() function by distributing bands with all following operations to different threads.
+
+### OpenMP Target Offload
+* For compute_sig() function, we use **#pragma omp target teams** to distribute documents to the league of teams. Each team will be responsible for documents from index ibgn to iend. Within each team, we distribute the nested for loop of signature computation to team of threads using **#pragma omp parallel for num_threads(SIG_NTRD)**. Each thread will be responsible for one hash function calculation.
+```
+#pragma omp target teams map(shingle, sig_hash_a, sig_hash_b, sig) num_teams(SIG_NTMS)
+    {
+
+        // for (int i = 0; i < DOCCOUNT; i++) // for every document
+        // {
+#pragma omp distribute
+        for (int t = 0; t < SIG_NTMS; t++)
+        {
+            int ibgn = DOCCOUNT / SIG_NTMS * t;
+            int iend = DOCCOUNT / SIG_NTMS * (t + 1);
+            if (t == SIG_NTMS - 1)
+                iend = DOCCOUNT;
+            for (int i = ibgn; i < iend; i++)
+            {
+#pragma omp parallel for num_threads(SIG_NTRD)
+                for (int k = 0; k < HASHCOUNT; k++) // every hash function
+                {
+                    for (int j = 0; j < SHINGLECOUNT; j++) // loop through all shingle indexes to find min index with value 1
+                    {
+                        if (shingle[i][j] == 1)
+                        {
+                            unsigned int res = (((long long)sig_hash_a[k] * j + sig_hash_b[k]) % 233333333333) % SHINGLECOUNT;
+                            // printf("%d ", res);
+                            sig[i][k] = MIN(sig[i][k], res);
+                        }
+                    }
+                    // printf("\n");
+                }
+            }
+        }
+    }
+}
+```
+* For compute_LSH() function, we failed to come up with a practical parallelization implementation due to the set operation problem. Each team will have a private set variable to save the valid pair results from all sub-threads. But the set can only be operated by one thread at one time considering the race condition, which could be a bottleneck of the effectiveness of the parallelization. Also, when copying the set struct results from GPU to CPU, since the element member in the struct is a pointer, the memory address transformation between CPU and GPU machines would be a problem. Further exploration is needed.
 
 ### MPI parallel computing
 We conducted MPI parallel computing on LSH, including:
@@ -52,13 +90,46 @@ Eventually we output all the similar file pairs.
 ## Expected Results
 We will test the runtime and efficiency of the algorithm with different parallelization methods and different numbers of nodes and threads by running the program on the CARC clusters. We are expected to see a similar efficiency pattern with strong scaling with more nodes and threads, while the runtime should decrease.
 
-## Analysis
+## Result Analysis
 ### Runtime comparasion between lsh.c and lsh_opt.c: 
-* For lsh.c:\ Time for computing signature matrix: 42.359000 seconds.\ Time focr generating valid pairs: >30mins
-* For lsh_opt.c:\ Time for computing signature matrix: 41.194000 seconds.\ Time focr generating valid pairs: 46.855000 seconds.\ Valid Pairs In Total: 644 -> **The following parallelization methods all use this version as a baseline.** 
+* For lsh.c:\
+Time for computing signature matrix: 42.359000 seconds.\
+Time focr generating valid pairs: >30mins
+* For lsh_opt.c:\
+Time for computing signature matrix: 41.194000 seconds.\
+Time focr generating valid pairs: 46.855000 seconds.\
+Valid Pairs In Total: 644 -> **The following parallelization methods all use this version as a baseline.** 
 
 ### OpenMP Results
 
+### OpenMP Target Offload Results
+* We test the perfomance of the parallelized compute_sig() function (NTMS 72, NTRD 100) with different GPUs including v100, a40, and a100 using following compile command and then running lsh_opt_omp_teams.sl:
+```
+nvc -mp=gpu -o lsh_opt_omp_teams lsh_opt_omp_teams.c
+```
+The runtime of different GPU machines are as follows:
+| GPU machine                 | Runtime         |
+|:--------------------- |:-------------------:|
+| v100                    | 2.174501 seconds    |
+| a40 | 3.543267s |
+| a100 | 3.407109 seconds |
+
+v100 machine gets the shortest runtime while the a100 gets a shorter runtime than a40. It might because the v100 has largest tensor cores (640) among the three and a100 (432) has more tensor cores than a40 (336) according to the information on the [CARC website](https://www.carc.usc.edu/user-information/user-guides/hpc-basics/discovery-resources). And we can see a significant improvement using GPU acceleration compared to baseline sequential code. 
+
+**During this process, we found an error in the assignment 8:**\
+To run the OpenMP target offload code on the GPU machine, we need to add the **-mp=gpu** flag. Otherwise it will run on the CPU machine by default and cannot get the acceleration. We tested the runtime with and without **-mp=gpu** flag and compared it with the runtime on CPU. We found that the runtime without **-mp=gpu** flag are nearly the same as the CPU runtime, while the runtime with **-mp=gpu** flag is much shorter. In order to use the **-mp=gpu** flag, we need to apply for a GPU machine higher than or equal to v100.
+
+
+## Future Work
+* The parallelization of compute_LSH() function using GPU machines still needed to be explored.
+* For now we separately implemented different parallelization methods. Next step can be exploring the most effective combination of these methods.
+* Improve the memory efficiency of the algorithm.
+* Try to optimize MPI_Send and MPI_Recv with MPI_Irecv and intermediate computation.
+
+## Contributions
+* Sanying Yi (github account: SanyingYi and ysyyy): Wrote the baseline code and implemented OpenMP target offload  and testings. README write-up.
+* Zeyu Huang (github account: huang-zeyu): Implemented MPI parallelization and testings. README write-up.
+* Hengrui Wang (yahaha-233): Implemented OpenMP parallelization and testings. README write-up.
 
 
 
