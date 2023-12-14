@@ -81,9 +81,6 @@ void compute_sig()
     printf("Compute Sig ...\n");
 
     memset(sig, 0xFFFF, sizeof(sig));
-    // for (int i = 0; i < DOCCOUNT; i++)
-    //     for (int j = 0; j < HASHCOUNT; j++)
-    //         sig[i][j] = 0xFFFF;
 
     for (int i = 0; i < DOCCOUNT; i++) // for every document
     {
@@ -116,17 +113,10 @@ void compute_sig_partial(int start_doc, int end_doc) {
             for (int j = 0; j < SHINGLECOUNT; j++) {
                 if (shingle[i][j] == 1) {
                     unsigned int res = ((((long long) sig_hash_a[k] * j + sig_hash_b[k])) % 233333333333ULL) % SHINGLECOUNT;
-                    // printf("%d ", res);
-                    // if (res == 0) {
-                    //     printf("a:%d, b:%d, j:%d \n", sig_hash_a[k], sig_hash_b[k], j);
-                    // }
                     sig[i][k] = MIN(sig[i][k], res);
                 }
             }
-            // break;
-            // printf("\n");
         }
-        // break;
     }
 }
 
@@ -192,9 +182,11 @@ void addToSet(struct Set *set, const struct Tuple *element) {
 
 // Function to print the elements of the set
 void printSet(const struct Set *set) {
-    printf("{ ");
+    printf("{ \n");
     for (size_t i = 0; i < set->size; i++) {
-        printf("(%d, %d) ", set->elements[i].first, set->elements[i].second);
+
+        printf("(%d, %d)\n", set->elements[i].first, set->elements[i].second);
+        
     }
     printf("}\n");
 }
@@ -228,9 +220,6 @@ void compute_LSH()
                     }
                 }
                 if(flag==0){
-                    // printf("%d, %d\n", j, k);
-                    // struct Tuple candidate = {(uint16_t)j, (uint16_t)k};
-                    // addToSet(&candidatePairSet, &candidate);
                     check_valid_pairs(&validPairSet, j, k);
                 }
             }
@@ -250,10 +239,7 @@ void compute_LSH()
 void check_valid_pairs(struct Set *set, int j, int k){
     double intersection_num=0.0, union_num=0.0;
     double similarity = 0.0;
-    // for (size_t i = 0; i < set->size; i++) {
-    // intersection_num=0;
-    // union_num=0;
-    // printf("(%d, %d) ", set->elements[i].first, set->elements[i].second);
+
     struct Tuple candidate = {(uint16_t)j, (uint16_t)k};
     if (!isInSet(set, &candidate)) {
         for (int s =0;s<SHINGLECOUNT; s++){
@@ -269,22 +255,14 @@ void check_valid_pairs(struct Set *set, int j, int k){
         similarity = intersection_num/union_num;
         // printf("\n%f", similarity);
         if (similarity>=THRESHOLD){
-            // struct Tuple candidate = {(uint16_t)j, (uint16_t)k};
-            // if (!isInSet(&validPairSet, &candidate)) {
             lshValidPairs++;
             addToSet(set, &candidate);
-                // printf("(%d, %d) ", set->elements[i].first, set->elements[i].second);
-                            
-            // }
-        // printf("(%d, %d) ", set->elements[i].first, set->elements[i].second);
         }
     }
-    // printf("\nValid Pairs In Total: %d", lshValidPairs);
 }
 
 void compute_LSH_MPI(struct Set *set, int start_band, int end_band, int rank) {
     int flag;
-    // printf("ckpt6, %d \n", rank);
     for (int i = start_band; i < end_band; i++) {
         for (int j = 0; j < DOCCOUNT - 1; j++) {
             for (int k = j + 1; k < DOCCOUNT; k++) {
@@ -296,65 +274,22 @@ void compute_LSH_MPI(struct Set *set, int start_band, int end_band, int rank) {
                     }
                 }
                 if (flag == 0) {
-                    // struct Tuple candidate = {(uint16_t)j, (uint16_t)k};
-                    // addToSet(set, &candidate);
-                    // printf("ckpt7, %d \n", rank);
                     check_valid_pairs(set, j, k);
-                    // printf("ckpt8, %d \n", rank);
                 }
             }
         }
     }
 }
 
-// int mergeSets(struct Set *destination, const struct Set *sources, int num_sets) {
-//     int lshValidPairs = 0;
-//     for (int i = 0; i < num_sets; i++) {
-//         for (size_t j = 0; j < sources[i].size; j++) {
-//             if (!isInSet(destination, &sources[i].elements[j])) {
-//                 lshValidPairs++;
-//                 addToSet(destination, &sources[i].elements[j]);
-//             }
-//         }
-//     }
-//     return lshValidPairs;
-// }
 
-int mergeSets(struct Set *destination, const struct Set *sources) {
-    int lshValidPairs = 0;
+void mergeSets(struct Set *destination, const struct Set *sources) {
     for (size_t j = 0; j < sources->size; j++) {
         if (!isInSet(destination, &sources->elements[j])) {
-            lshValidPairs++;
             addToSet(destination, &sources->elements[j]);
         }
     }
-    return lshValidPairs;
 }
 
-// char* serializeSet(const struct Set* set) {
-//     // 计算序列化所需的总字节大小
-//     size_t totalSize = sizeof(struct Tuple) * set->size;
-//     char* buffer = malloc(totalSize);
-//     if (buffer == NULL) {
-//         return NULL;
-//     }
-
-//     // 将大小信息和元素复制到 buffer
-//     memcpy(buffer, set->elements, sizeof(struct Tuple) * set->size);
-
-//     return buffer;
-// }
-
-// void deserializeSet(struct Set* set, const char* buffer, size_t size) {
-//     // 为元素分配空间并从 buffer 中复制
-//     set->elements = malloc(size);
-//     if (set->elements == NULL) {
-//         set->size = 0;
-//         set->capacity = 5;
-//         return;
-//     }
-//     memcpy(set->elements, buffer, size);
-// }
 
 uint16_t* serializeSet(const struct Set* set) {
     uint16_t* buffer = malloc(set->size * 2 * sizeof(uint16_t));
@@ -379,9 +314,7 @@ void deserializeSet(struct Set* set, uint16_t* buffer, size_t size) {
 
 
 size_t getSerializedSize(const struct Set* set) {
-    // 计算序列化所需的总字节大小
-    // 包括 size 和 capacity 字段以及 elements 数组中所有元素的总大小
-    size_t totalSize = set->size * 2 * sizeof(uint16_t); // 对于 elements 数组
+    size_t totalSize = set->size * 2 * sizeof(uint16_t);
     return totalSize;
 }
 
@@ -389,29 +322,9 @@ size_t getSerializedSize(const struct Set* set) {
 int main(int argc, char **argv)
 {
     read_shingle_matrix();
-    // for (int i = 0; i < 4; i++)
-    // {
-    //     for (int j = 0; j < 4; j++)
-    //         printf("%u", shingle[i][j]);
-    //     printf("\n");
-    // }
+
     generate_hash_function();
-    // for (int i = 0; i < HASHCOUNT; i++)
-    // {
-    //     printf("%d+%d\n", sig_hash_a[i], sig_hash_b[i]);
-    // }
 
-    // compute_sig();
-
-    // printf("\nSig Matrix\n");
-    // for (int i = 0; i < DOCCOUNT; i++)
-    // {
-    //     for (int j = 0; j < HASHCOUNT; j++)
-    //     {
-    //         printf("%d ", sig[i][j]);
-    //     }
-    //     printf("\n");
-    // }
 
     // ==============mpi signature computing===============
     MPI_Init(&argc,&argv);
@@ -424,14 +337,6 @@ int main(int argc, char **argv)
     if (world_rank == 0) {
         start_time = clock();
     }
-    // if (world_rank == 0) {
-    //     for (int i = 0; i < 4; i++)
-    //     {
-    //         for (int j = 0; j < 4; j++)
-    //             printf("%u", shingle[i][j]);
-    //         printf("\n");
-    //     }
-    // }
 
     // initialize sig matrix
     memset(sig, 0xFFFF, sizeof(sig));
@@ -453,16 +358,13 @@ int main(int argc, char **argv)
             sig, docs_per_proc * HASHCOUNT, MPI_UINT16_T,
             0, MPI_COMM_WORLD);
 
-
-
-
     if (world_rank == 0) {
-        // 主进程发送 sig 数组到其他所有进程
+        // main proc send sig to other proc
         for (int i = 1; i < world_size; i++) {
             MPI_Send(sig, DOCCOUNT * HASHCOUNT, MPI_UINT16_T, i, 0, MPI_COMM_WORLD);
         }
     } else {
-        // 其他进程接收 sig 数组
+        // other proc receive sig matrix
         MPI_Recv(sig, DOCCOUNT * HASHCOUNT, MPI_UINT16_T, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     }
     MPI_Barrier(MPI_COMM_WORLD);
@@ -470,16 +372,11 @@ int main(int argc, char **argv)
 
     // ====================== LSH MPI =========================
 
-
-    // int nproc = atoi(argv[1]);
     size_t initialCapacity = DOCCOUNT;
-    // struct Set procsSet[nproc];
-
-    // for (int i = 0; i < nproc; i++) {
-    //     initializeSet(&procsSet[i], initialCapacity);
-    // }
-    // initializeSet(&candidatePairSet, initialCapacity);
-    initializeSet(&validPairSet, initialCapacity);
+    if (world_rank == 0) {
+        initializeSet(&validPairSet, initialCapacity);
+    }
+    
 
     int bands_per_proc = BANDCOUNT / world_size;
     int start_band = world_rank * bands_per_proc;
@@ -487,22 +384,20 @@ int main(int argc, char **argv)
 
     struct Set mySet;
     initializeSet(&mySet, DOCCOUNT);
-    // printf("ckpt1\n");
 
+    // distribute band computation to different procs
     compute_LSH_MPI(&mySet, start_band, end_band, world_rank);
-    // printf("ckpt2, %d \n", world_rank);
 
     MPI_Barrier(MPI_COMM_WORLD);
 
     if (world_rank == 0) {
 
-        // 合并当前进程的结果
+        // merge res of the main proc
         mergeSets(&validPairSet, &mySet);
 
-        // 接收其他进程的数据
+        // receive data fromm other proc
         for (int i = 1; i < world_size; i++) {
             uint64_t buffer_size;
-            // printf("ckpt3\n");
             MPI_Recv(&buffer_size, 1, MPI_UINT64_T, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
             uint16_t* buffer = malloc(buffer_size);
@@ -511,10 +406,7 @@ int main(int argc, char **argv)
             printf("Recv from %d, length: %d \n", i, buffer_size / (2 * sizeof(uint16_t)));
             struct Set otherSet;
             initializeSet(&otherSet, buffer_size / (2 * sizeof(uint16_t)));
-            deserializeSet(&otherSet, buffer, buffer_size);
-
-            // printSet(&otherSet);
-            // printf("\n\n\n\n\n\n\n\n");
+            deserializeSet(&otherSet, buffer, buffer_size / (2 * sizeof(uint16_t)));
 
             mergeSets(&validPairSet, &otherSet);
 
@@ -527,12 +419,11 @@ int main(int argc, char **argv)
 
         freeSet(&validPairSet);
     } else {
-        // 序列化 mySet 并发送到主进程
-        // printf("ckpt5, %d \n", world_rank);
+        // serialize mySet and send to main proc
 
 
         uint16_t* buffer = serializeSet(&mySet);
-        uint64_t buffer_size = (uint64_t) getSerializedSize(&mySet); // 假设这个函数可以计算序列化数据的大小
+        uint64_t buffer_size = (uint64_t) getSerializedSize(&mySet);
 
         printf("send from %d, length: %d \n", world_rank, buffer_size / (2 * sizeof(uint16_t)));
         MPI_Send(&buffer_size, 1, MPI_UINT64_T, 0, 0, MPI_COMM_WORLD);
@@ -540,15 +431,6 @@ int main(int argc, char **argv)
 
         free(buffer);
     }
-
-
-
-
-
-
-
-
-
 
     MPI_Finalize();
 
@@ -561,30 +443,5 @@ int main(int argc, char **argv)
         printf("Time for whole process: %f seconds\n", elapsed_time);
     }
 
-    // if (world_rank == 0) {
-    //     printf("\nSig Matrix\n");
-    //     for (int i = 0; i < DOCCOUNT; i++)
-    //     {
-    //         for (int j = 0; j < HASHCOUNT; j++)
-    //         {
-    //             printf("%d ", sig[i][j]);
-    //         }
-    //         printf("\n");
-    //     }
-    // }
     return 0;
-
-
-
-
-
-
-    // compute_LSH();
-    // // printSet(&candidatePairSet);
-    // // printf("Valid Pair Results: \n");
-    // printf("Valid Pairs In Total: %d\n", lshValidPairs);
-    // printSet(&validPairSet);
-    // // check_valid_pairs(&candidatePairSet);
-    // // freeSet(&candidatePairSet);
-    // freeSet(&validPairSet);
 }
