@@ -41,6 +41,14 @@ It contains the real input data that we used to test the performance of our algo
 ## Parallelization Implementation
 When we tried to parallelize the algorithm, we found that combining valid pair checking step to the banded LSH function can get better performance, i.e. instead of creating an intermediate candidate set to save all candidate pairs, we will check the similarity of each candidate pair immediately and only save valid pairs to a final result set. Therefore we parallelize the compute_LSH() function by distributing bands with all following operations to different threads.
 
+### MPI parallel computing
+We conducted MPI parallel computing on LSH, including:
+
+1. **MinHash signature computing**: Each process is responsible for computing the signatures for part of the documents. Then the full data is distributed back to each process after aggregating it in the main process.
+2. **Banded LSH mapping**: The bands are equally distributed to processes, where we check if documents with the same signature pieces are indeed similar, and if so, we add the pair into the result set. Then the results are gathered in the main process.
+
+Eventually we output all the similar file pairs.
+
 ### OpenMP Target Offload
 * For compute_sig() function, we use **#pragma omp target teams** to distribute documents to the league of teams. Each team will be responsible for documents from index ibgn to iend. Within each team, we distribute the nested for loop of signature computation to team of threads using **#pragma omp parallel for num_threads(SIG_NTRD)**. Each thread will be responsible for one hash function calculation.
 ```
@@ -79,13 +87,6 @@ When we tried to parallelize the algorithm, we found that combining valid pair c
 ```
 * For compute_LSH() function, we failed to come up with a practical parallelization implementation due to the set operation problem. Each team will have a private set variable to save the valid pair results from all sub-threads. But the set can only be operated by one thread at one time considering the race condition, which could be a bottleneck of the effectiveness of the parallelization. Also, when copying the set struct results from GPU to CPU, since the element member in the struct is a pointer, the memory address transformation between CPU and GPU machines would be a problem. Further exploration is needed.
 
-### MPI parallel computing
-We conducted MPI parallel computing on LSH, including:
-
-1. **MinHash signature computing**: Each process is responsible for computing the signatures for part of the documents. Then the full data is distributed back to each process after aggregating it in the main process.
-2. **Banded LSH mapping**: The bands are equally distributed to processes, where we check if documents with the same signature pieces are indeed similar, and if so, we add the pair into the result set. Then the results are gathered in the main process.
-
-Eventually we output all the similar file pairs.
 
 ## Expected Results
 We will test the runtime and efficiency of the algorithm with different parallelization methods and different numbers of nodes and threads by running the program on the CARC clusters. We are expected to see a similar efficiency pattern with strong scaling with more nodes and threads, while the runtime should decrease.
@@ -99,6 +100,23 @@ Time focr generating valid pairs: >30mins
 Time for computing signature matrix: 41.194000 seconds.\
 Time focr generating valid pairs: 46.855000 seconds.\
 Valid Pairs In Total: 644 -> **The following parallelization methods all use this version as a baseline.** 
+
+### MPI results
+We plotted the parallel efficiency as a function of #procs.
+
+![mpi lsh efficiency](img/plot_img/mpi_lsh.png)
+
+From the graph above, It is evident that the parallel efficiency of our MPI LSH task degrades rapidly as the number of processes increases. This may be attributed to the significant volume of data that needs to be sent and received between processes, which increases the overhead of inter-process communication.
+
+| #procs | Time (s) |
+|:--------:|:--------:|
+| 1    | 63.15   |
+| 2    | 37.38   |
+| 4    | 20.79   |
+| 8    | 12.20   |
+| 16   | 9.06    |
+
+The above is the total time spent when running MPI LSH with different numbers of processes. We obtained a maximum speedup of 6.97 for parallel LSH computation. We can conclude that using MPI to accelerate LSH calculations is highly effective and practically meaningful.
 
 ### OpenMP Results
 
@@ -133,22 +151,6 @@ To run the OpenMP target offload code on the GPU machine, we need to add the **-
 
 
 
-### MPI results
-We plotted the parallel efficiency as a function of #procs.
-
-![mpi lsh efficiency](img/plot_img/mpi_lsh.png)
-
-From the graph above, It is evident that the parallel efficiency of our MPI LSH task degrades rapidly as the number of processes increases. This may be attributed to the significant volume of data that needs to be sent and received between processes, which increases the overhead of inter-process communication.
-
-| #procs | Time (s) |
-|:--------:|:--------:|
-| 1    | 63.15   |
-| 2    | 37.38   |
-| 4    | 20.79   |
-| 8    | 12.20   |
-| 16   | 9.06    |
-
-The above is the total time spent when running MPI LSH with different numbers of processes. We obtained a maximum speedup of 6.97 for parallel LSH computation. We can conclude that using MPI to accelerate LSH calculations is highly effective and practically meaningful.
 
 ## Reference
 [1] https://www.pinecone.io/learn/series/faiss/locality-sensitive-hashing/
