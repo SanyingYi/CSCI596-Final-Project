@@ -1,17 +1,23 @@
-#include <stdlib.h>
+#include <omp.h>
 #include "lsh.h"
+#include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <assert.h>
 #include <stdint.h>
 #include <time.h>
 #include <stdbool.h>
+#include <limits.h>
 
+//#define nthrd 16
+int nthrd = 0;
 #define MIN(a, b) (a < b ? a : b)
 #define MAX(a, b) (a > b ? a : b)
 
-// const char *pathdata = "../data/test_matrix.txt";
+// const char *pathdata = "../data/doc_shingle_matrix.txt";
 const char *pathdata = "../data/doc_shingle_real_data.txt";
+// const char *pathdata = "../data/test_matrix.txt";
+// const char *pathdata = "../data/doc_shingle_matrix_2400_10232.txt";
 
 uint32_t sig_hash_a[HASHCOUNT]; // the slope a of the signature hash functions
 uint32_t sig_hash_b[HASHCOUNT]; // the interception b of the signature hash functions
@@ -73,13 +79,24 @@ void generate_hash_function()
 // ==================== Minhash Function to Generate Signature Matrix====================
 void compute_sig()
 {
-    clock_t start_time = clock();
+    // clock_t start_time = clock();
+    double start_time = omp_get_wtime();
     printf("Compute Sig ...\n");
 
     memset(sig, 0xFFFF, sizeof(sig));
 
-    for (int i = 0; i < DOCCOUNT; i++) // for every document
+    omp_set_num_threads(nthrd);
+
+    // for (int i = 0; i < DOCCOUNT; i++)
+    //     for (int j = 0; j < HASHCOUNT; j++)
+    //         sig[i][j] = INT_MAX;
+
+    // for (int i = 0; i < DOCCOUNT; i++) // for every document
+    // {
+    // #pragma omp parallel for
+    for (int i = 0; i < DOCCOUNT; i++)
     {
+#pragma omp parallel for
         for (int k = 0; k < HASHCOUNT; k++) // every hash function
         {
             for (int j = 0; j < SHINGLECOUNT; j++) // loop through all shingle indexes to find min index with value 1
@@ -94,11 +111,13 @@ void compute_sig()
             // printf("\n");
         }
     }
-    clock_t end_time = clock();
+
+    // clock_t end_time = clock();
+    double end_time = omp_get_wtime();
 
     // Calculate the elapsed time in seconds
-    double elapsed_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
-    printf("Time for computing signature matrix: %f seconds\n", elapsed_time);
+    // double elapsed_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
+    printf("Time for computing signature matrix: %f seconds\n", end_time - start_time);
 }
 
 // ==================== Banded LSH Function to Generate Candidate Pairs====================
@@ -132,7 +151,7 @@ void initializeSet(struct Set *set, size_t initialCapacity)
 }
 
 // Function to check if a tuple is in the set
-bool isInSet(const struct Set *set, const struct Tuple *element)
+bool isInSet(struct Set *set, const struct Tuple *element)
 {
     for (size_t i = 0; i < set->size; i++)
     {
@@ -194,14 +213,24 @@ void freeSet(struct Set *set)
 
 void compute_LSH()
 {
-    clock_t start_time = clock();
+    // clock_t start_time = clock();
+    double start_time = omp_get_wtime();
 
     int flag = 0;
     size_t initialCapacity = DOCCOUNT;
+    struct Set thereadSet[nthrd];
+    for (int i = 0; i < nthrd; i++) {
+        initializeSet(&thereadSet[i], initialCapacity);
+    }
     // initializeSet(&candidatePairSet, initialCapacity);
     initializeSet(&validPairSet, initialCapacity);
+
+    omp_set_num_threads(nthrd);
+
+    #pragma omp parallel for
     for (int i = 0; i < BANDCOUNT; i++) // iterate through every band  for (int i = 0; i < BANDCOUNT; i++)
     {
+        int pid = omp_get_thread_num();
         for (int j = 0; j < DOCCOUNT - 1; j++) // hash every sig. piece in the band to the bucket
         {
             for (int k = j + 1; k < DOCCOUNT; k++)
@@ -220,22 +249,34 @@ void compute_LSH()
                     // printf("%d, %d\n", j, k);
                     // struct Tuple candidate = {(uint16_t)j, (uint16_t)k};
                     // addToSet(&candidatePairSet, &candidate);
-                    check_valid_pairs(&validPairSet, j, k);
+                    check_valid_pairs(&thereadSet[pid], j, k);
                 }
             }
         }
     }
     // Record the end time
-    clock_t end_time = clock();
+    // clock_t end_time = clock();
+    double end_time = omp_get_wtime();
+
+    for (int i = 0; i < nthrd; i++) {
+        for (int j = 0; j < thereadSet[i].size; j++) {
+            if (!isInSet(&validPairSet, &thereadSet[i].elements[j])){
+		lshValidPairs++;
+                addToSet(&validPairSet, &thereadSet[i].elements[j]);
+            }
+        }
+    }
+    double end_time2 = omp_get_wtime();
 
     // Calculate the elapsed time in seconds
-    double elapsed_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
-    printf("Time for generating valid pairs: %f seconds\n", elapsed_time);
+    // double elapsed_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
+    printf("Time for generating valid pairs: %f seconds\n", end_time - start_time);
+    printf("Time for merging sets: %f seconds\n", end_time2 - end_time);
 }
 
 //====================Check Candidate Pairs to Filter Out Valid Pairs====================
 
-void check_valid_pairs(const struct Set *set, int j, int k)
+void check_valid_pairs(struct Set *set, int j, int k)
 {
     double intersection_num = 0.0, union_num = 0.0;
     double similarity = 0.0;
@@ -244,7 +285,7 @@ void check_valid_pairs(const struct Set *set, int j, int k)
     // union_num=0;
     // printf("(%d, %d) ", set->elements[i].first, set->elements[i].second);
     struct Tuple candidate = {(uint16_t)j, (uint16_t)k};
-    if (!isInSet(&validPairSet, &candidate))
+    if (!isInSet(set, &candidate))
     {
         for (int s = 0; s < SHINGLECOUNT; s++)
         {
@@ -265,8 +306,8 @@ void check_valid_pairs(const struct Set *set, int j, int k)
         {
             // struct Tuple candidate = {(uint16_t)j, (uint16_t)k};
             // if (!isInSet(&validPairSet, &candidate)) {
-            lshValidPairs++;
-            addToSet(&validPairSet, &candidate);
+            // lshValidPairs++;
+            addToSet(set, &candidate);
             // printf("(%d, %d) ", set->elements[i].first, set->elements[i].second);
 
             // }
@@ -276,8 +317,9 @@ void check_valid_pairs(const struct Set *set, int j, int k)
     // printf("\nValid Pairs In Total: %d", lshValidPairs);
 }
 
-int main()
+int main(int argc, char *argv[])
 {
+    nthrd = atoi(argv[1]);
     read_shingle_matrix();
     // for (int i = 0; i < 4; i++)
     // {
@@ -291,6 +333,7 @@ int main()
     //     printf("%d+%d\n", sig_hash_a[i], sig_hash_b[i]);
     // }
     compute_sig();
+
     // printf("\nSig Matrix\n");
     // for (int i = 0; i < DOCCOUNT; i++)
     // {
@@ -302,11 +345,12 @@ int main()
     // }
 
     compute_LSH();
-    // printSet(&candidatePairSet);
-    // printf("Valid Pair Results: \n");
+    // // printSet(&candidatePairSet);
+    // // printf("Valid Pair Results: \n");
     printf("Valid Pairs In Total: %d\n", lshValidPairs);
-    printSet(&validPairSet);
-    // check_valid_pairs(&candidatePairSet);
-    // freeSet(&candidatePairSet);
+    // printSet(&validPairSet);
+    // // check_valid_pairs(&candidatePairSet);
+    // // freeSet(&candidatePairSet);
     freeSet(&validPairSet);
+    return 0;
 }
