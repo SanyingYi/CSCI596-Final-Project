@@ -111,7 +111,7 @@ The runtime of different GPU machines are as follows:
 | GPU machine                 | Runtime         |
 |:--------------------- |:-------------------:|
 | v100                    | 2.174501 seconds    |
-| a40 | 3.543267s |
+| a40 | 3.543267 seconds |
 | a100 | 3.407109 seconds |
 
 v100 machine gets the shortest runtime while the a100 gets a shorter runtime than a40. It might because the v100 has largest tensor cores (640) among the three and a100 (432) has more tensor cores than a40 (336) according to the information on the [CARC website](https://www.carc.usc.edu/user-information/user-guides/hpc-basics/discovery-resources). And we can see a significant improvement using GPU acceleration compared to baseline sequential code. 
