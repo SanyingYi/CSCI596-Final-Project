@@ -31,13 +31,25 @@ It contains the real input data that we used to test the performance of our algo
 * lsh.c: the basic version of c code containing the whole process. Construct a Set structure to store the candidate pair results.
 * lsh_opt.c: a optimization version of lsh.c. Due to the race conditions related to Set operations, we found that it's difficult to design an efficient parallelization process since the majority computation cost falls into the Set operations. In order to reduce some omp critical operations, we build this version. By changing the candidate pair set to the valid pair set, we reduce the number of set operations while increasing the checking similarity operations which can be better parallelized. **We will use it as the benchmark for parallelization tasks.**
 * lsh.h: the header file that contains the declarations of functions and constants. All the .c files will use this header file.
-* lsh_opt_omp_openmp.c: Parallelized signature matrix computation and candidate pairs computation using OpenMP.
-* lsh_opt_omp_openmp.sl: the .sl file to run the lsh_opt_omp_openmp.c file with 1, 2, 4, 8, 16, 32, 64 threads and generate the output.
+* lsh_opt_omp_openmp.c: Parallelized signature matrix computation and valid pairs computation using OpenMP.
+* lsh_opt_omp_openmp.sl: the .sl file to run the compiled lsh_opt_omp_openmp file with 1, 2, 4, 8, 16, 32, 64 threads and generate the output.
 * lsh_opt_omp_teams.c: Parallelized signature matrix computation using OpenMP target offload. Due to Set operation limitation, we failed to parallelize the candidate pairs computation to valid pairs generation.
 * lsh_opt_omp_teams.sl: the .sl file to run the lsh_opt_omp_teams.c file and generate the output.
 
 ## Parallelization Implementation
 When we tried to parallelize the algorithm, we found that combining valid pair checking step to the banded LSH function can get better performance. Therefore we parallelize the compute_LSH() function instead of parallelizing those functions separately.
+
+### OpenMP
+To use OpenMP to parallelize the LSH algorithm, the most intuitive way is to **parallelize the for loops** in our original code.
+
+1. We can see that in function ```compute_sig()``` we need to generate a specific number of signatures using hash functions for each document. 
+So, we can **distribute the work of *one document's signature generation* to a bunch of threads**. 
+In this way, we can speed up the signature generation process.
+
+2. In function ```compute_LSH()```, we divide the signature matrix into several bands. 
+For each band, we need to check if the signature pieces are the same as others. If so, they are the candidate pairs. And if the two documents are similar enough, they are the valid pairs. 
+We can **distribute the work of *checking the signature pieces*, the work of *checking the documents' similarity* to different threads**. 
+In this way, we can speed up the valid pairs generation process.
 
 ## Expected Results
 We will test the runtime and efficiency of the algorithm with different parallelization methods and different numbers of nodes and threads by running the program on the CARC clusters. We are expected to see a similar efficiency pattern with strong scaling with more nodes and threads, while the runtime should decrease.
@@ -48,6 +60,30 @@ We will test the runtime and efficiency of the algorithm with different parallel
 * For lsh_opt.c:\ Time for computing signature matrix: 41.194000 seconds.\ Time focr generating valid pairs: 46.855000 seconds.\ Valid Pairs In Total: 644 -> **The following parallelization methods all use this version as a baseline.** 
 
 ### OpenMP Results
+To compile the OpenMP code and run it on CARC, we need to use the following command:
+```
+$ module load gcc
+$ gcc -fopenmp -O -o lsh_opt_omp_openmp lsh_opt_omp_openmp.c
+$ sbatch lsh_opt_omp_openmp.sl
+```
+The output will be saved in the file defined in the ```.sl``` file, starting with the number of threads and then the runtime and valid pairs in total.
+
+Example output:
+```
+1
+Compute Sig ...
+Time for computing signature matrix: 8.099872 seconds
+Time for generating valid pairs: 18.956838 seconds
+Time for merging sets: 0.000107 seconds
+Valid Pairs In Total: 644
+```
+
+We plot the runtime and efficiency of the OpenMP code with different numbers of threads. The results are shown below:
+1. For signature generation running on 1 node with 1, 2, 4, 8, 16, 32, 64 threads:
+![Alt text](img/opemmp_plot/OpenMP_Signature_Generation_Result.png)
+
+2. For valid pairs generation running on 1 node with 1, 2, 4, 8, 16, 32, 64 threads:
+![Alt text](img/opemmp_plot/OpenMP_Valid_Pairs_Generation_Result.png)
 
 
 ## Reference
