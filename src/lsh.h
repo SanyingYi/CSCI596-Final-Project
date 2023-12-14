@@ -19,4 +19,3 @@ void compute_sig();
 void compute_LSH();
 
 void check_valid_pairs();
-
