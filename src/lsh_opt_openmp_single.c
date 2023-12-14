@@ -9,8 +9,8 @@
 #include <stdbool.h>
 #include <limits.h>
 
-#define nthrd 16
-
+//#define nthrd 16
+int nthrd = 0;
 #define MIN(a, b) (a < b ? a : b)
 #define MAX(a, b) (a > b ? a : b)
 
@@ -317,8 +317,9 @@ void check_valid_pairs(struct Set *set, int j, int k)
     // printf("\nValid Pairs In Total: %d", lshValidPairs);
 }
 
-int main()
+int main(int argc, char *argv[])
 {
+    nthrd = atoi(argv[1]);
     read_shingle_matrix();
     // for (int i = 0; i < 4; i++)
     // {
